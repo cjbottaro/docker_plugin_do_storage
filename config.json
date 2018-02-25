@@ -1,0 +1,57 @@
+{
+  "description": "Digital Ocean Storage plugin for Docker",
+  "documentation": "https://docs.docker.com/engine/extend/plugins/",
+  "workdir": "/do_storage",
+  "entrypoint": [
+    "/usr/bin/mix",
+    "run",
+    "--no-halt"
+  ],
+  "env": [
+    {
+      "name": "DEBUG",
+      "settable": [
+        "value"
+      ],
+      "value": "0"
+    },
+    {
+      "name": "ACCESS_TOKEN",
+      "settable": [
+        "value"
+      ],
+      "value": null
+    }
+  ],
+  "interface": {
+    "socket": "do_storage.sock",
+    "types": [
+      "docker.volumedriver/1.0"
+    ]
+  },
+  "linux": {
+    "capabilities": [
+      "CAP_SYS_ADMIN"
+    ],
+    "devices": [
+    ]
+  },
+  "mounts": [
+    {
+      "destination": "/mnt/state",
+      "options": [
+        "rbind"
+      ],
+      "name": "state",
+      "source": "/var/lib/docker/plugins/",
+      "settable": [
+        "source"
+      ],
+      "type": "bind"
+    }
+  ],
+  "network": {
+    "type": "bridge"
+  },
+  "propagatedmount": "/mnt/volumes"
+}
