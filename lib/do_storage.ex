@@ -3,10 +3,11 @@ defmodule DoStorage do
   require Logger
   alias DoStorage.{Volume, Api, Metadata}
 
-  plug :match
   plug DoStorage.Plug.Json
   plug DoStorage.Plug.Log
+  plug :match
   plug :dispatch
+  plug :respond
 
   post "/VolumeDriver.Capabilities" do
     resp = %{
@@ -14,7 +15,7 @@ defmodule DoStorage do
         Scope: "global"
       }
     }
-    send_json(conn, resp)
+    assign(conn, :resp, resp)
   end
 
   post "/VolumeDriver.Create" do
@@ -22,13 +23,12 @@ defmodule DoStorage do
 
     response = case Api.volume_get(name) do
       {:error, reason} -> %{"Err" => reason}
-      {:ok, volume} ->
-        volume = %Volume{name: name, options: opts}
-        :ets.insert(DoStorage, {name, volume})
+      {:ok, _volume} ->
+        put_volume(%Volume{name: name, options: opts})
         %{"Err" => ""}
     end
 
-    send_json(conn, response)
+    assign(conn, :resp, response)
   end
 
   post "/VolumeDriver.Remove" do
@@ -40,48 +40,53 @@ defmodule DoStorage do
       Err: ""
     }
 
-    send_json(conn, resp)
+    assign(conn, :resp, resp)
   end
 
   post "/VolumeDriver.Mount" do
     %{"Name" => name} = conn.params
 
-    {:ok, volume} = Api.volume_get(name)
-    attach(volume)
-    mount(volume)
+    resp = with {:ok, volume} <- Api.volume_get(name),
+      {:ok, _action} <- attach(volume),
+      {:ok, mountpoint} <- mount(volume),
+      {:ok, volume} <- get_volume(name)
+    do
+      %{volume | mountpoint: mountpoint} |> put_volume
+      %{Err: "", Mountpoint: mountpoint}
+    else
+      {:error, reason} -> %{Err: reason}
+    end
 
-    resp = %{
-      Err: "",
-      Mountpoint: "/mnt/volumes/#{name}"
-    }
-
-    send_json(conn, resp)
+    assign(conn, :resp, resp)
   end
 
   post "/VolumeDriver.Unmount" do
     resp = %{
       Err: "",
     }
-    send_json(conn, resp)
+    assign(conn, :resp, resp)
   end
 
   post "/VolumeDriver.Path" do
     %{"Name" => name} = conn.params
 
-    resp = %{
-      Err: "",
-      Mountpoint: "/mnt/volumes/#{name}"
-    }
+    resp = case get_volume(name) do
+      {:error, reason} -> %{Err: reason}
+      {:ok, volume} -> %{
+        Mountpoint: volume.mountpoint,
+        Err: ""
+      }
+    end
 
-    send_json(conn, resp)
+    assign(conn, :resp, resp)
   end
 
   post "/VolumeDriver.Get" do
     name = conn.params["Name"]
 
-    resp = case :ets.lookup(DoStorage, name) do
-      [] -> %{Err: "#{name} does not exist"}
-      [{_, volume}] -> %{
+    resp = case get_volume(name) do
+      {:error, reason} -> %{Err: reason}
+      {:ok, volume} -> %{
         Volume: %{
           Name: volume.name,
           Mountpoint: volume.mountpoint,
@@ -91,7 +96,7 @@ defmodule DoStorage do
       }
     end
 
-    send_json(conn, resp)
+    assign(conn, :resp, resp)
   end
 
   post "/VolumeDriver.List" do
@@ -109,11 +114,7 @@ defmodule DoStorage do
       Volumes: volumes
     }
 
-    send_json(conn, resp)
-  end
-
-  defp send_json(conn, jsonable) do
-    send_resp(conn, 200, Poison.encode!(jsonable))
+    assign(conn, :resp, resp)
   end
 
   def attach(volume, droplet_id \\ nil) do
@@ -124,7 +125,7 @@ defmodule DoStorage do
 
     cond do
       # Hey, we're already attached!
-      Enum.member?(droplet_ids, droplet_id) -> :ok
+      Enum.member?(droplet_ids, droplet_id) -> {:ok, volume}
 
       # Volume is attached to another droplet, detach and retry.
       length(droplet_ids) != 0 ->
@@ -169,6 +170,8 @@ defmodule DoStorage do
       if not (results =~ device) do
         {_result, 0} = System.cmd("/bin/mount", [device, mountpoint])
       end
+
+      {:ok, mountpoint}
     else
       mount(volume, letter+1)
     end
@@ -193,6 +196,24 @@ defmodule DoStorage do
         error -> error
       end
     end
+  end
+
+  defp put_volume(volume) do
+    :ets.insert(DoStorage, {volume.name, volume})
+  end
+
+  defp get_volume(name) do
+    case :ets.lookup(DoStorage, name) do
+      [] -> {:error, "Volume (internal) #{name} does not exist"}
+      [{_, volume}] -> {:ok, volume}
+    end
+  end
+
+  defp respond(conn, _options) do
+    op = String.replace(conn.request_path, "/", "")
+    response = conn.assigns[:resp] |> Poison.encode!
+    Logger.info("#{op} ->> #{response}")
+    send_resp(conn, 200, response)
   end
 
 end
