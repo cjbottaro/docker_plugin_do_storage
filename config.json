@@ -33,25 +33,27 @@
     "capabilities": [
       "CAP_SYS_ADMIN"
     ],
-    "devices": [
-    ]
+    "devices": null,
+    "AllowAllDevices": true
   },
   "mounts": [
     {
-      "destination": "/mnt/state",
-      "options": [
-        "rbind"
-      ],
-      "name": "state",
+      "type": "bind",
+      "source": "/dev",
+      "destination": "/mnt/dev",
+      "options": ["rbind"]
+    },
+    {
+      "type": "bind",
       "source": "/var/lib/docker/plugins/",
-      "settable": [
-        "source"
-      ],
-      "type": "bind"
+      "destination": "/mnt/state",
+      "options": ["rbind"],
+      "name": "state",
+      "settable": ["source"]
     }
   ],
   "network": {
-    "type": "bridge"
+    "type": "host"
   },
   "propagatedmount": "/mnt/volumes"
 }

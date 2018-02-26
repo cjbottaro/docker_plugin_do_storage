@@ -2,7 +2,7 @@ defmodule DoStorage.Metadata do
 
   @base_url "http://169.254.169.254/metadata/v1"
 
-  def id, do: get_metadata("id")
+  def id, do: (System.get_env("DROPLET_ID") || get_metadata("id")) |> to_string |> String.to_integer
   def region, do: System.get_env("DO_REGION") || get_metadata("region")
 
   def get_metadata(path) do
