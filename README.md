@@ -1,4 +1,4 @@
-# cjbottaro/do_storage - Docker Volume Plugin for DigitalOcean Block Storage
+# Docker Volume Plugin for DigitalOcean Block Storage
 
 This plugin associates a container with a DigitalOcean volume. In swarm mode,
 the volume will "follow" the container around to whatever worker it gets
