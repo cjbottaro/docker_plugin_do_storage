@@ -34,11 +34,13 @@ defmodule DoStorage do
   post "/VolumeDriver.Remove" do
     %{"Name" => name} = conn.params
 
-    :ets.delete(DoStorage, name)
-
-    resp = %{
-      Err: ""
-    }
+    resp = case umount(name) do
+      {:ok, _volume} ->
+        :ets.delete(DoStorage, name)
+        %{Err: ""}
+      {:error, reason} ->
+        %{Err: reason}
+    end
 
     assign(conn, :resp, resp)
   end
@@ -61,9 +63,13 @@ defmodule DoStorage do
   end
 
   post "/VolumeDriver.Unmount" do
-    resp = %{
-      Err: "",
-    }
+    %{"Name" => name} = conn.params
+
+    resp = case umount(name) do
+      {:ok, _volume} -> %{Err: ""}
+      {:error, reason} -> %{Err: reason}
+    end
+
     assign(conn, :resp, resp)
   end
 
@@ -177,6 +183,14 @@ defmodule DoStorage do
     end
   end
 
+  defp umount(name) do
+    with {:ok, volume} <- get_volume(name),
+      {_result, 0} <- System.cmd("/bin/umount", [volume.mountpoint])
+    do
+      %{volume | mountpoint: nil} |> put_volume
+    end
+  end
+
   defp wait_for(action, statuses \\ ~w(completed errored)) do
     statuses = List.wrap(statuses)
     %{
@@ -200,6 +214,7 @@ defmodule DoStorage do
 
   defp put_volume(volume) do
     :ets.insert(DoStorage, {volume.name, volume})
+    {:ok, volume}
   end
 
   defp get_volume(name) do

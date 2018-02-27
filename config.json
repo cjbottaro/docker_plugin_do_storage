@@ -42,14 +42,6 @@
       "source": "/dev",
       "destination": "/mnt/dev",
       "options": ["rbind"]
-    },
-    {
-      "type": "bind",
-      "source": "/var/lib/docker/plugins/",
-      "destination": "/mnt/state",
-      "options": ["rbind"],
-      "name": "state",
-      "settable": ["source"]
     }
   ],
   "network": {
