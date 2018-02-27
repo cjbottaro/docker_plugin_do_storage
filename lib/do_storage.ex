@@ -1,7 +1,7 @@
 defmodule DoStorage do
   use Plug.Router
   require Logger
-  alias DoStorage.{Volume, Api, Metadata}
+  alias DoStorage.{Volume, Api, Metadata, Mounter}
 
   plug DoStorage.Plug.Json
   plug DoStorage.Plug.Log
@@ -24,7 +24,7 @@ defmodule DoStorage do
     response = case Api.volume_get(name) do
       {:error, reason} -> %{"Err" => reason}
       {:ok, _volume} ->
-        put_volume(%Volume{name: name, options: opts})
+        Volume.put(%Volume{name: name, options: opts})
         %{"Err" => ""}
     end
 
@@ -50,11 +50,9 @@ defmodule DoStorage do
 
     resp = with {:ok, volume} <- Api.volume_get(name),
       {:ok, _action} <- attach(volume),
-      {:ok, mountpoint} <- mount(volume),
-      {:ok, volume} <- get_volume(name)
+      {:ok, volume} <- Mounter.mount(name)
     do
-      %{volume | mountpoint: mountpoint} |> put_volume
-      %{Err: "", Mountpoint: mountpoint}
+      %{Err: "", Mountpoint: volume.mountpoint}
     else
       {:error, reason} -> %{Err: reason}
     end
@@ -76,7 +74,7 @@ defmodule DoStorage do
   post "/VolumeDriver.Path" do
     %{"Name" => name} = conn.params
 
-    resp = case get_volume(name) do
+    resp = case Volume.get(name) do
       {:error, reason} -> %{Err: reason}
       {:ok, volume} -> %{
         Mountpoint: volume.mountpoint,
@@ -90,7 +88,7 @@ defmodule DoStorage do
   post "/VolumeDriver.Get" do
     name = conn.params["Name"]
 
-    resp = case get_volume(name) do
+    resp = case Volume.get(name) do
       {:error, reason} -> %{Err: reason}
       {:ok, volume} -> %{
         Volume: %{
@@ -158,36 +156,11 @@ defmodule DoStorage do
     end
   end
 
-  defp mount(volume, letter \\ ?a)
-
-  defp mount(%{"name" => vol_name}, letter) when letter > ?z do
-    {:error, "No device found for #{vol_name}"}
-  end
-  defp mount(volume, letter) do
-    device = "/mnt/dev/sd" <> <<letter>> # TODO fix this
-    if File.exists?(device) do
-      %{"name" => vol_name} = volume
-      mountpoint = "/mnt/volumes/#{vol_name}"
-
-      File.mkdir(mountpoint)
-
-      {results, 0} = System.cmd("/bin/mount", [])
-
-      if not (results =~ device) do
-        {_result, 0} = System.cmd("/bin/mount", [device, mountpoint])
-      end
-
-      {:ok, mountpoint}
-    else
-      mount(volume, letter+1)
-    end
-  end
-
   defp umount(name) do
-    with {:ok, volume} <- get_volume(name),
+    with {:ok, volume} <- Volume.get(name),
       {_result, 0} <- System.cmd("/bin/umount", [volume.mountpoint])
     do
-      %{volume | mountpoint: nil} |> put_volume
+      %{volume | mountpoint: nil} |> Volume.put
     end
   end
 
@@ -209,18 +182,6 @@ defmodule DoStorage do
         {:ok, action} -> wait_for(action, statuses)
         error -> error
       end
-    end
-  end
-
-  defp put_volume(volume) do
-    :ets.insert(DoStorage, {volume.name, volume})
-    {:ok, volume}
-  end
-
-  defp get_volume(name) do
-    case :ets.lookup(DoStorage, name) do
-      [] -> {:error, "Volume (internal) #{name} does not exist"}
-      [{_, volume}] -> {:ok, volume}
     end
   end
 
