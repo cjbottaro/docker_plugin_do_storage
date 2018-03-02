@@ -1,0 +1,12 @@
+FROM alpine:3.7
+
+RUN apk add --no-cache docker curl libgcc
+RUN curl -Ls https://github.com/docker/compose/releases/download/1.19.0/docker-compose-`uname -s`-`uname -m` -o /usr/bin/docker-compose
+RUN chmod 755 /usr/bin/docker-compose
+RUN curl -Ls https://raw.githubusercontent.com/sgerrand/alpine-pkg-glibc/master/sgerrand.rsa.pub -o /etc/apk/keys/sgerrand.rsa.pub
+RUN curl -Ls -O https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.27-r0/glibc-2.27-r0.apk
+RUN curl -Ls -O https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.27-r0/glibc-bin-2.27-r0.apk
+RUN apk add glibc-2.27-r0.apk glibc-bin-2.27-r0.apk
+ADD build.sh config.json /
+
+ENTRYPOINT ["./build.sh"]

@@ -1,0 +1,18 @@
+version: "3"
+
+services:
+
+  do_storage:
+    image: cjbottaro/do_storage:latest
+    build: .
+    environment:
+      MIX_ENV: prod
+
+  do_storage_builder:
+    image: cjbottaro/do_storage_builder:latest
+    build:
+      dockerfile: Dockerfile-builder
+      context: .
+    volumes:
+      - ./docker-compose.yml:/docker-compose.yml
+      - /var/run/docker.sock:/var/run/docker.sock

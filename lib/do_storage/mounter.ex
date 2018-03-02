@@ -2,7 +2,7 @@ defmodule DoStorage.Mounter do
   alias DoStorage.Volume
   import DoStorage.Helpers
 
-  @devices_dir "/dev/disk/by-id"
+  @devices_dir "/mnt/dev/disk/by-id"
   @mount_root "/mnt/volumes"
   @device_prefix "scsi-0DO_Volume_"
 
@@ -71,7 +71,7 @@ defmodule DoStorage.Mounter do
     {:error, "no devices that start with /dev/sd"}
   end
   defp scan_devices(letter) do
-    device = "/dev/sd#{<<letter>>}"
+    device = "/mnt/dev/sd#{<<letter>>}"
     if @file_mod.exists?(device) do
       {:ok, device}
     else
@@ -98,8 +98,11 @@ defmodule DoStorage.Mounter do
       device = output
         |> String.split("\n")
         |> Enum.find_value(fn line ->
-          [device | tokens] = String.split(line)
-          Enum.any?(tokens, &String.ends_with?(&1, mountpoint)) && device
+          case String.split(line) do
+            [] -> false
+            [device | tokens] ->
+              Enum.any?(tokens, &String.ends_with?(&1, mountpoint)) && device
+          end
         end)
       {:ok, device}
     else

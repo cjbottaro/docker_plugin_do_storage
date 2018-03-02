@@ -94,3 +94,11 @@ psql: FATAL:  could not open relation mapping file "global/pg_filenode.map": No 
 We start a container on `node1`, but then we start a container on `node2` and the
 volume is detached from `node1` and attached to `node2`. Now when we ask the first
 container to list the databases, it give us a fatal error.
+
+## Building
+
+```
+docker-compose build do_storage
+docker-compose run --rm do_storage_builder
+docker plugin push cjbottaro/do_storage:latest
+```

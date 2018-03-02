@@ -4,3 +4,5 @@
 !mix.exs
 !mix.lock
 !repositories
+!build.sh
+!config.json
