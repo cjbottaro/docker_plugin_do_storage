@@ -4,7 +4,10 @@ services:
 
   do_storage:
     image: cjbottaro/do_storage:latest
-    build: .
+    build:
+      context: .
+      args:
+        MIX_ENV: prod
     environment:
       MIX_ENV: prod
 
