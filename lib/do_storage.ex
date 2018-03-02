@@ -1,7 +1,7 @@
 defmodule DoStorage do
   use Plug.Router
   require Logger
-  alias DoStorage.{Volume, Api, Metadata, Mounter}
+  alias DoStorage.{Volume, Api, Metadata, Attacher, Mounter}
 
   plug DoStorage.Plug.Json
   plug DoStorage.Plug.Log
@@ -34,7 +34,7 @@ defmodule DoStorage do
   post "/VolumeDriver.Remove" do
     %{"Name" => name} = conn.params
 
-    resp = case umount(name) do
+    resp = case Mounter.umount(name) do
       {:ok, _volume} ->
         :ets.delete(DoStorage, name)
         %{Err: ""}
@@ -48,8 +48,7 @@ defmodule DoStorage do
   post "/VolumeDriver.Mount" do
     %{"Name" => name} = conn.params
 
-    resp = with {:ok, volume} <- Api.volume_get(name),
-      {:ok, _action} <- attach(volume),
+    resp = with {:ok, _} <- Attacher.attach(name, Metadata.id),
       {:ok, volume} <- Mounter.mount(name)
     do
       %{Err: "", Mountpoint: volume.mountpoint}
@@ -63,7 +62,7 @@ defmodule DoStorage do
   post "/VolumeDriver.Unmount" do
     %{"Name" => name} = conn.params
 
-    resp = case umount(name) do
+    resp = case Mounter.umount(name) do
       {:ok, _volume} -> %{Err: ""}
       {:error, reason} -> %{Err: reason}
     end
@@ -119,70 +118,6 @@ defmodule DoStorage do
     }
 
     assign(conn, :resp, resp)
-  end
-
-  def attach(volume, droplet_id \\ nil) do
-    name = volume["name"]
-    volume_id = volume["id"]
-    droplet_id = droplet_id || Metadata.id
-    droplet_ids = volume["droplet_ids"]
-
-    cond do
-      # Hey, we're already attached!
-      Enum.member?(droplet_ids, droplet_id) -> {:ok, volume}
-
-      # Volume is attached to another droplet, detach and retry.
-      length(droplet_ids) != 0 ->
-        detach_droplet_id = List.first(droplet_ids)
-        with {:ok, action} <- Api.volume_detach(detach_droplet_id, volume_id),
-          {:ok, action} <- wait_for(action)
-        do
-          case action do
-            %{"status" => "errored"} -> {:error, "Detaching volume #{name} from #{droplet_id} failed"}
-            _ -> volume |> Map.put("droplet_ids", []) |> attach(droplet_id)
-          end
-        end
-
-      # Not attached to anything, so we can attach.
-      true ->
-        with {:ok, action} <- Api.volume_attach(droplet_id, volume_id),
-          {:ok, action} <- wait_for(action)
-        do
-          case action do
-            %{"status" => "errored"} -> {:error, "Attaching volume #{name} to #{droplet_id} failed"}
-            _ -> {:ok, action}
-          end
-        end
-    end
-  end
-
-  defp umount(name) do
-    with {:ok, volume} <- Volume.get(name),
-      {_result, 0} <- System.cmd("/bin/umount", [volume.mountpoint])
-    do
-      %{volume | mountpoint: nil} |> Volume.put
-    end
-  end
-
-  defp wait_for(action, statuses \\ ~w(completed errored)) do
-    statuses = List.wrap(statuses)
-    %{
-      "id" => id,
-      "type" => type,
-      "status" => status,
-      "resource_type" => resource_type,
-    } = action
-
-    if Enum.member?(statuses, status) do
-      {:ok, action}
-    else
-      Logger.info("waiting on #{resource_type} #{type}")
-      :timer.sleep(1000)
-      case Api.action_get(id) do
-        {:ok, action} -> wait_for(action, statuses)
-        error -> error
-      end
-    end
   end
 
   defp respond(conn, _options) do
