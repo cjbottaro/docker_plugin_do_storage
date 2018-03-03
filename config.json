@@ -9,18 +9,13 @@
   ],
   "env": [
     {
-      "name": "DEBUG",
-      "settable": [
-        "value"
-      ],
-      "value": "0"
+      "name": "ACCESS_TOKEN",
+      "settable": ["value"],
+      "value": null
     },
     {
-      "name": "ACCESS_TOKEN",
-      "settable": [
-        "value"
-      ],
-      "value": null
+      "name": "MIX_ENV",
+      "value": "prod"
     }
   ],
   "interface": {

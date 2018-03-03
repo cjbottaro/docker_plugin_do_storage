@@ -7,6 +7,5 @@ RUN curl -Ls https://raw.githubusercontent.com/sgerrand/alpine-pkg-glibc/master/
 RUN curl -Ls -O https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.27-r0/glibc-2.27-r0.apk
 RUN curl -Ls -O https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.27-r0/glibc-bin-2.27-r0.apk
 RUN apk add glibc-2.27-r0.apk glibc-bin-2.27-r0.apk
-ADD build.sh config.json /
 
-ENTRYPOINT ["./build.sh"]
+ENTRYPOINT ["/build.sh"]

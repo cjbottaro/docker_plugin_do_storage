@@ -50,7 +50,7 @@ defmodule DoStorage.Mounter do
     if @file_mod.dir?(@devices_dir) do
       scan_devices_dir(name)
     else
-      scan_devices(?a)
+      {:error, "/dev/disk/by-id does not exist"}
     end
   end
 
@@ -64,18 +64,6 @@ defmodule DoStorage.Mounter do
     else
       {:error, _} = error -> error
       nil -> {:error, "no device found for #{name}"}
-    end
-  end
-
-  defp scan_devices(letter) when letter > ?z do
-    {:error, "no devices that start with /dev/sd"}
-  end
-  defp scan_devices(letter) do
-    device = "/mnt/dev/sd#{<<letter>>}"
-    if @file_mod.exists?(device) do
-      {:ok, device}
-    else
-      scan_devices(letter + 1)
     end
   end
 
